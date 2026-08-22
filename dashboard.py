@@ -1,5 +1,10 @@
 import streamlit as st
-import requests
+import pandas as pd
+import pickle
+
+# Load the AI model directly into the dashboard
+with open("rto_model.pkl", "rb") as file:
+    model = pickle.load(file)
 
 # Set up the page appearance
 st.set_page_config(page_title="RTO Risk Engine", page_icon="🛡️", layout="centered")
@@ -21,31 +26,30 @@ with col1:
     
     guest_int = 1 if is_guest == "Guest Checkout" else 0
 
-# Column 2: The API Response
+# Column 2: The API Response & Dynamic UI
 with col2:
     st.subheader("⚡ Live AI Decision")
     
-    payload = {
-        "cart_value_inr": cart_value,
-        "checkout_hour": hour,
-        "address_quality_score": address_score,
-        "is_guest_user": guest_int
-    }
-    
     if st.button("Process Payment Options", use_container_width=True):
-        try:
-            response = requests.post("http://127.0.0.1:8001/predict_risk", json=payload)
-            data = response.json()
-            
-            if data["action"] == "hide_cod":
-                st.error("🚨 **High RTO Risk Detected**")
-                st.write("High probability of Return to Origin. Force prepaid payment.")
-                st.warning("💳 **Credit Card / UPI** (Required)")
-            else:
-                st.success("✅ **Low Risk User**")
-                st.write("Safe transaction. Display all payment options.")
-                st.info("💳 **Credit Card / UPI**")
-                st.info("💵 **Cash on Delivery (COD)**")
-                
-        except requests.exceptions.ConnectionError:
-            st.error("Cannot connect to API. Is your uvicorn server running?")
+        
+        # Format the data for the AI
+        input_df = pd.DataFrame([{
+            'Cart_Value_INR': cart_value,
+            'Checkout_Hour': hour,
+            'Address_Quality_Score': address_score,
+            'Is_Guest_User': guest_int
+        }])
+        
+        # Ask the AI for a prediction directly
+        prediction = model.predict(input_df)[0]
+        
+        # Update the UI
+        if prediction == 1:
+            st.error("🚨 **High RTO Risk Detected**")
+            st.write("High probability of Return to Origin. Force prepaid payment.")
+            st.warning("💳 **Credit Card / UPI** (Required)")
+        else:
+            st.success("✅ **Low Risk User**")
+            st.write("Safe transaction. Display all payment options.")
+            st.info("💳 **Credit Card / UPI**")
+            st.info("💵 **Cash on Delivery (COD)**")
