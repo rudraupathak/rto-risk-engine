@@ -27,7 +27,6 @@ with col2:
     
     if st.button("Process Payment Options", use_container_width=True):
         
-        # 1. Format the data into a JSON payload for the network request
         payload = {
             "cart_value_inr": cart_value,
             "checkout_hour": hour,
@@ -35,23 +34,24 @@ with col2:
             "is_guest_user": guest_int
         }
         
-        # 2. This is your live Render API URL!
         API_URL = "https://rto-risk-engine.onrender.com/predict_risk"
         
         try:
             with st.spinner("Querying Risk Microservice..."):
-                # 3. Send the data over the internet to Render
                 response = requests.post(API_URL, json=payload, timeout=30)
                 data = response.json()
             
-            # 4. Update the UI based on what Render sends back
-            if data["action"] == "hide_cod":
+            # We grab the raw prediction value safely from the API dictionary
+            prediction = list(data.values())[0]
+            
+            # Update the UI based on the raw number
+            if prediction == 1:
                 st.error("🚨 **High RTO Risk Detected**")
-                st.write(data["message"])
+                st.write("High probability of Return to Origin. Force prepaid payment.")
                 st.warning("💳 **Credit Card / UPI** (Required)")
             else:
                 st.success("✅ **Low Risk User**")
-                st.write(data["message"])
+                st.write("Safe transaction. Display all payment options.")
                 st.info("💳 **Credit Card / UPI**")
                 st.info("💵 **Cash on Delivery (COD)**")
                 
