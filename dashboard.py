@@ -41,11 +41,8 @@ with col2:
                 response = requests.post(API_URL, json=payload, timeout=30)
                 data = response.json()
             
-            # We grab the raw prediction value safely from the API dictionary
-            prediction = list(data.values())[0]
-            
-            # Update the UI based on the raw number
-            if prediction == 1:
+           # Update the UI based on the API status
+            if data.get("status") == "high_risk":
                 st.error("🚨 **High RTO Risk Detected**")
                 st.write("High probability of Return to Origin. Force prepaid payment.")
                 st.warning("💳 **Credit Card / UPI** (Required)")
