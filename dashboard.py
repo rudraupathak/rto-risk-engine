@@ -1,16 +1,11 @@
 import streamlit as st
-import pandas as pd
-import pickle
-
-# Load the AI model directly into the dashboard
-with open("rto_model.pkl", "rb") as file:
-    model = pickle.load(file)
+import requests
 
 # Set up the page appearance
 st.set_page_config(page_title="RTO Risk Engine", page_icon="🛡️", layout="centered")
 
 st.title("🛡️ Dynamic Checkout Intent Engine")
-st.markdown("This dashboard simulates a checkout page. The AI evaluates the user's risk in real-time before displaying the Cash-on-Delivery option.")
+st.markdown("This dashboard simulates a checkout page. The frontend communicates with a dedicated FastAPI microservice to evaluate risk in real time.")
 st.divider()
 
 # Create a layout with two columns
@@ -32,24 +27,34 @@ with col2:
     
     if st.button("Process Payment Options", use_container_width=True):
         
-        # Format the data for the AI
-        input_df = pd.DataFrame([{
-            'Cart_Value_INR': cart_value,
-            'Checkout_Hour': hour,
-            'Address_Quality_Score': address_score,
-            'Is_Guest_User': guest_int
-        }])
+        # 1. Format the data into a JSON payload for the network request
+        payload = {
+            "cart_value_inr": cart_value,
+            "checkout_hour": hour,
+            "address_quality_score": address_score,
+            "is_guest_user": guest_int
+        }
         
-        # Ask the AI for a prediction directly
-        prediction = model.predict(input_df)[0]
+        # 2. This is your live Render API URL!
+        API_URL = "https://rto-risk-engine.onrender.com/predict_risk"
         
-        # Update the UI
-        if prediction == 1:
-            st.error("🚨 **High RTO Risk Detected**")
-            st.write("High probability of Return to Origin. Force prepaid payment.")
-            st.warning("💳 **Credit Card / UPI** (Required)")
-        else:
-            st.success("✅ **Low Risk User**")
-            st.write("Safe transaction. Display all payment options.")
-            st.info("💳 **Credit Card / UPI**")
-            st.info("💵 **Cash on Delivery (COD)**")
+        try:
+            with st.spinner("Querying Risk Microservice..."):
+                # 3. Send the data over the internet to Render
+                response = requests.post(API_URL, json=payload, timeout=30)
+                data = response.json()
+            
+            # 4. Update the UI based on what Render sends back
+            if data["action"] == "hide_cod":
+                st.error("🚨 **High RTO Risk Detected**")
+                st.write(data["message"])
+                st.warning("💳 **Credit Card / UPI** (Required)")
+            else:
+                st.success("✅ **Low Risk User**")
+                st.write(data["message"])
+                st.info("💳 **Credit Card / UPI**")
+                st.info("💵 **Cash on Delivery (COD)**")
+                
+        except requests.exceptions.RequestException as e:
+            st.error("Failed to connect to backend microservice.")
+            st.caption(f"Details: {e}")
